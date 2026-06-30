@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>杭州小学生第二课堂 · 全部基地地图(107家)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1f2d27}
+  #map{position:absolute;inset:0;z-index:1}
+  .topbar{
+    position:absolute;top:0;left:0;right:0;z-index:1000;
+    background:linear-gradient(180deg,rgba(31,45,39,.92),rgba(31,45,39,.78));
+    color:#eaf3ee;padding:12px 16px;backdrop-filter:blur(6px);
+  }
+  .topbar h1{font-size:16px;font-weight:800;letter-spacing:.3px}
+  .topbar p{font-size:12px;color:#a9d6bd;margin-top:2px}
+  .legend{
+    position:absolute;left:12px;bottom:18px;z-index:1000;
+    background:rgba(255,255,255,.95);border-radius:14px;
+    box-shadow:0 6px 22px rgba(0,0,0,.18);padding:12px 12px 8px;
+    max-height:64vh;overflow:auto;width:185px;backdrop-filter:blur(4px);
+  }
+  .legend h3{font-size:13px;margin-bottom:6px;color:#3a513f;display:flex;justify-content:space-between}
+  .legend .all{font-size:11px;color:#3f8fd0;cursor:pointer}
+  .legend .item{
+    display:flex;align-items:center;gap:8px;font-size:13px;
+    padding:4px 6px;border-radius:8px;cursor:pointer;user-select:none;
+  }
+  .legend .item:hover{background:#eef5f0}
+  .legend .item.off{opacity:.32}
+  .dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+  .legend .cnt{margin-left:auto;font-size:11px;color:#7d8c83}
+  .legend .hint{font-size:10.5px;color:#8c9a91;margin-top:8px;line-height:1.5}
+  .leaflet-popup-content{margin:12px 14px;font-size:13.5px;line-height:1.6;width:248px!important}
+  .leaflet-popup-content b{font-size:15.5px}
+  .leaflet-popup-content .addr{color:#5d6b63;font-size:12.5px;margin-top:3px}
+  .leaflet-popup-content .desc{font-size:13px;color:#36473e;margin-top:7px;line-height:1.6;
+    border-top:1px dashed #dfe8e1;padding-top:7px}
+  .leaflet-popup-content .tags{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+  .leaflet-popup-content .tg{font-size:11px;background:#e1f4e8;color:#2f7e57;border-radius:6px;padding:2px 7px}
+  .leaflet-popup-content .tg.free{background:#fdeede;color:#c07d2a}
+  .locbtn{
+    position:absolute;right:12px;top:62px;z-index:1000;
+    background:#e0533d;color:#fff;border:0;border-radius:12px;
+    padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer;
+    box-shadow:0 4px 16px rgba(224,83,61,.4);
+  }
+  .locbtn:active{transform:scale(.96)}
+  .nearby{
+    position:absolute;right:12px;top:110px;z-index:1000;width:228px;
+    background:rgba(255,255,255,.96);border-radius:14px;
+    box-shadow:0 6px 22px rgba(0,0,0,.18);padding:12px;backdrop-filter:blur(4px);
+    max-height:62vh;overflow:auto;display:none;
+  }
+  .nearby h3{font-size:13px;color:#3a513f;margin-bottom:8px}
+  .nearby .row{
+    display:flex;align-items:center;gap:9px;padding:8px 6px;border-radius:9px;
+    cursor:pointer;border-bottom:1px solid #eef3ef;
+  }
+  .nearby .row:hover{background:#eef5f0}
+  .nearby .row .nd{width:11px;height:11px;border-radius:50%;flex:0 0 auto;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+  .nearby .row .info{flex:1;min-width:0}
+  .nearby .row .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nearby .row .sub{font-size:11px;color:#7d8c83}
+  .nearby .row .dist{font-size:13px;font-weight:700;color:#e0533d;white-space:nowrap}
+  @media(max-width:560px){.legend{width:160px;max-height:42vh}.nearby{width:170px}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="topbar">
+  <h1>🎒 杭州小学生第二课堂 · 全部基地地图</h1>
+  <p>共 107 家 · 点圆点看亮点介绍 · 点「定位」或点地图算最近</p>
+</div>
+<button class="locbtn" id="locBtn">📍 定位我的位置</button>
+<div class="nearby" id="nearby">
+  <h3>📌 离你最近的打卡点</h3>
+  <div id="nearbyList"></div>
+</div>
+<div class="legend">
+  <h3>城区 <span class="all" id="toggleAll">全开/全关</span></h3>
+  <div id="legendList"></div>
+  <div class="hint">名单:本地宝公开名单(85家)+第九批新增等,去重共107家。坐标按地址估算,导航以实际地址为准。</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const GROUPS = {
+  sc:{name:"上城区",color:"#e0533d"},
+  gs:{name:"拱墅区",color:"#e8923a"},
+  xh:{name:"西湖区",color:"#46a86a"},
+  bj:{name:"滨江区",color:"#3f8fd0"},
+  qt:{name:"钱塘区",color:"#19a7a0"},
+  yh:{name:"余杭区",color:"#8a6cd4"},
+  lp:{name:"临平区",color:"#d44d8c"},
+  xs:{name:"萧山区",color:"#a9743f"},
+  fy:{name:"富阳区",color:"#6b8e23"},
+  la:{name:"临安区",color:"#c0a020"},
+  tl:{name:"桐庐县",color:"#5b8a9a"},
+  jd:{name:"建德市",color:"#9c6b9c"},
+  ca:{name:"淳安县",color:"#778"},
+};
+// f=1免费,f=0需购票/半价。坐标GCJ-02近似。d=游玩亮点
+const SPOTS = [
+  // 上城区
+  {g:"sc",n:"杭州孔庙",a:"府学巷8号",t:"儒学·碑刻",f:1,lat:30.237,lng:120.168,d:"杭州古代官学旧址,看大成殿、孔子像和碑林,了解科举和儒家文化。"},
+  {g:"sc",n:"中国棋院杭州分院",a:"钱潮路2号",t:"棋类",f:1,lat:30.247,lng:120.207,d:"围棋象棋主题,可观摩高手对弈、体验棋文化,适合爱下棋的孩子。"},
+  {g:"sc",n:"胡庆余堂中药博物馆",a:"大井巷95号",t:"中医药",f:1,lat:30.240,lng:120.168,d:"\"江南药王\"百年老药铺,看古朴堂楼、抓药称戥、闻满屋药香,活的中医药课堂。"},
+  {g:"sc",n:"杭州图书馆",a:"解放东路58号",t:"阅读",f:1,lat:30.245,lng:120.210,d:"钱江新城大型图书馆,少儿区藏书丰富,常有讲座和活动,安静读书好去处。"},
+  {g:"sc",n:"南宋遗址陈列馆",a:"中山南路199号",t:"南宋史",f:1,lat:30.238,lng:120.170,d:"南宋御街考古遗址,透过玻璃看八百年前的道路和城市生活痕迹。"},
+  {g:"sc",n:"蒋筑英纪念馆",a:"金狮苑20号",t:"科学家",f:1,lat:30.252,lng:120.198,d:"纪念光学科学家蒋筑英,看他的事迹,感受科学家的钻研精神。"},
+  {g:"sc",n:"杭州博物馆",a:"粮道山18号",t:"城市史",f:1,lat:30.236,lng:120.166,d:"一馆看懂杭州八千年到近代的变迁,镇馆之宝战国水晶杯很惊艳。"},
+  {g:"sc",n:"杭州孝道文化馆",a:"天鹤路321号(皋亭山)",t:"孝道",f:1,lat:30.350,lng:120.230,d:"皋亭山景区内,孝道主题展陈,可结合千桃园踏青、爬山一起玩。"},
+  {g:"sc",n:"尚青书院",a:"牛羊司巷17号",t:"国学",f:1,lat:30.243,lng:120.170,d:"传统国学书院,体验书法、诵读等传统文化活动。"},
+  {g:"sc",n:"胡雪岩故居",a:"元宝街18号",t:"古建·历史",f:1,lat:30.235,lng:120.171,d:"晚清\"红顶商人\"豪宅,精美的江南园林、木雕砖雕和芝园,看富商生活。"},
+  {g:"sc",n:"Do都城少儿社会体验馆",a:"钱江新城市民中心K楼",t:"职业体验",f:0,lat:30.245,lng:120.212,d:"角色扮演各种职业:当医生、消防员、主播…在玩中体验社会(半价)。"},
+  {g:"sc",n:"杭州城市规划展览馆",a:"新业路229号",t:"城市规划",f:1,lat:30.244,lng:120.211,d:"超大城市沙盘和数字模型,直观看杭州的过去、现在和未来蓝图。"},
+  {g:"sc",n:"杭州大剧院",a:"新业路39号",t:"艺术",f:1,lat:30.244,lng:120.215,d:"钱江新城地标银白\"贝壳\"建筑,可看演出、参观舞台后台。"},
+  {g:"sc",n:"杭州青少年发展中心",a:"钱江新城市民中心K楼",t:"青少年",f:1,lat:30.246,lng:120.212,d:"面向青少年的活动空间,有科普、社团和各类主题体验。"},
+  {g:"sc",n:"中国社区建设展示中心",a:"元宝街1号",t:"社区",f:1,lat:30.235,lng:120.170,d:"了解中国城市社区的发展和居民生活变化。"},
+  {g:"sc",n:"杭州市爱心教育体验基地",a:"姚江路3号",t:"公益教育",f:1,lat:30.250,lng:120.215,d:"公益、感恩与生命教育主题体验,培养爱心和责任感。"},
+  {g:"sc",n:"中国财税博物馆",a:"吴山广场28号",t:"财税史",f:1,lat:30.240,lng:120.166,d:"全国唯一财税专题馆,看历代钱币、税赋实物,理解\"钱从哪来\"。"},
+  {g:"sc",n:"茅以升事迹展览馆",a:"景芳二区35幢",t:"桥梁·科学家",f:1,lat:30.250,lng:120.205,d:"纪念钱塘江大桥设计者茅以升,看中国人自己造大桥的传奇故事。"},
+  {g:"sc",n:"杭州爱乐乐团",a:"新业路39号",t:"音乐",f:1,lat:30.244,lng:120.215,d:"音乐普及基地,可听乐团排练和音乐会,做古典音乐启蒙。"},
+  {g:"sc",n:"中国杭帮菜博物馆",a:"虎玉路9号",t:"饮食文化",f:1,lat:30.211,lng:120.162,d:"江洋畈生态公园内,看杭帮菜历史和逼真菜品模型,东坡肉、西湖醋鱼的故事都在这。"},
+  {g:"sc",n:"八卦田遗址公园",a:"南复路",t:"农耕·遗址",f:1,lat:30.209,lng:120.157,d:"南宋皇帝亲耕的\"籍田\",八卦形田块种着四季作物,登玉皇山俯瞰超出片。"},
+  {g:"sc",n:"杭州万松书院",a:"万松岭路81号",t:"书院",f:1,lat:30.232,lng:120.160,d:"梁山伯祝英台同窗读书地,古色古香的书院,可登高览城、了解科举。"},
+  {g:"sc",n:"世博案例杭州馆",a:"吴山3号",t:"城市",f:1,lat:30.240,lng:120.166,d:"上海世博会杭州馆移建于此,展示低碳生活和城市智慧。"},
+  {g:"sc",n:"南宋官窑博物馆",a:"南复路60号",t:"陶瓷·南宋",f:1,lat:30.208,lng:120.160,d:"建在南宋官窑遗址上,看温润青瓷和古龙窑,还能动手体验拉坯做陶。"},
+  {g:"sc",n:"杭州西湖博物馆(西博馆区)",a:"南山路89号",t:"西湖文化",f:1,lat:30.245,lng:120.150,d:"系统了解西湖怎么形成、有哪些文化和申遗故事,看西湖前先来这。"},
+  {g:"sc",n:"南宋德寿宫遗址博物馆",a:"望江路228号",t:"南宋皇城",f:1,lat:30.243,lng:120.178,d:"网红打卡点!南宋皇家宫殿遗址,巨幅朱红宫墙+数字化复原,沉浸感超强。"},
+  {g:"sc",n:"吴山城隍阁",a:"吴山10号",t:"登高·人文",f:1,lat:30.238,lng:120.165,d:"登阁俯瞰西湖和老城全景,了解城隍文化,山下就是河坊街。"},
+  {g:"sc",n:"杭州白塔公园",a:"老复兴街4号",t:"运河·火车",f:1,lat:30.203,lng:120.150,d:"看千年白塔和老火车、旧铁轨,能坐小火车,亲子拍照遛娃首选。"},
+  {g:"sc",n:"杭州青年运动史馆",a:"思鑫坊萱寿里17号",t:"青年史",f:1,lat:30.250,lng:120.155,d:"藏在思鑫坊老建筑里,看杭州青年运动的历史。"},
+  {g:"sc",n:"浙江省儿童青少年眼健康科普馆",a:"凤起东路618号",t:"健康科普",f:1,lat:30.262,lng:120.185,d:"爱眼护眼主题,互动了解近视怎么来、怎么防,实用又有趣。"},
+
+  // 拱墅区
+  {g:"gs",n:"杭州工艺美术博物馆",a:"小河路334号",t:"工艺美术",f:1,lat:30.312,lng:120.149,d:"运河边,看玉雕、牙雕、织绣等工艺精品,常设手工体验,孩子能动手做。"},
+  {g:"gs",n:"中国京杭大运河博物馆",a:"运河文化广场1号",t:"运河·历史",f:1,lat:30.318,lng:120.150,d:"系统讲大运河2500年:漕运、船只模型、闸口原理,看懂这条\"水上高速\"。"},
+  {g:"gs",n:"刀剪剑·扇·伞博物馆",a:"小河路450号",t:"非遗·三馆相邻",f:1,lat:30.314,lng:120.149,d:"三馆挨在一起,看张小泉剪刀、王星记扇、西湖绸伞,非遗满满还能体验。"},
+  {g:"gs",n:"手工艺活态馆",a:"桥弄街10-1号",t:"手作体验",f:1,lat:30.313,lng:120.148,d:"现场看也能亲手做:油纸伞、活字印刷、陶艺、竹编…动手党的天堂。"},
+  {g:"gs",n:"马寅初纪念馆",a:"庆春路210号",t:"名人故居",f:1,lat:30.258,lng:120.175,d:"经济学家、北大老校长马寅初故居,了解他敢说真话的故事。"},
+  {g:"gs",n:"天子岭环境教育基地",a:"临半路90号",t:"垃圾·环保",f:1,lat:30.360,lng:120.155,d:"垃圾填埋场变身生态公园,直观学垃圾分类和环保,很有冲击力的一课。"},
+  {g:"gs",n:"杭州市家庭心理健康体验中心",a:"华丰路317号",t:"心理健康",f:1,lat:30.310,lng:120.180,d:"通过互动游戏体验情绪管理和心理健康知识。"},
+  {g:"gs",n:"杭州城市建设陈列馆",a:"庆春路258号",t:"城建史",f:1,lat:30.258,lng:120.176,d:"看杭州城市建设的变迁,老照片和模型里的城市记忆。"},
+  {g:"gs",n:"陆游纪念馆",a:"孩儿巷98号",t:"诗人故居",f:1,lat:30.262,lng:120.165,d:"孩儿巷宋韵小院,纪念爱国诗人陆游,\"小楼一夜听春雨\"就写在这一带。"},
+  {g:"gs",n:"浙江省立第一师范旧址",a:"凤起路238号",t:"教育史",f:1,lat:30.265,lng:120.172,d:"李叔同、鲁迅曾在此任教,中国近代教育的重要一页。"},
+  {g:"gs",n:"浙江自然博物院",a:"西湖文化广场6号",t:"恐龙·自然",f:1,lat:30.290,lng:120.158,d:"杭州亲子天花板!恐龙化石、地球生命、动物标本,互动多到逛一天不够。"},
+  {g:"gs",n:"浙江省档案馆",a:"丰潭路409号",t:"档案史料",f:1,lat:30.285,lng:120.130,d:"看珍贵历史档案和史料,了解档案如何记录时代。"},
+  {g:"gs",n:"杭州市科技交流馆",a:"延安路489号",t:"科技",f:1,lat:30.270,lng:120.165,d:"科技互动展项,亲手玩科学小实验。"},
+  {g:"gs",n:"浙江省科技馆",a:"西湖文化广场A区",t:"科学·互动",f:1,lat:30.290,lng:120.159,d:"大量动手展项:声光电、机械、人体奥秘,孩子最爱的科学乐园。"},
+  {g:"gs",n:"杭州都锦生织锦博物馆",a:"凤起路519号",t:"丝织·非遗",f:1,lat:30.265,lng:120.160,d:"看丝织像锦的机器和工艺,了解\"东方艺术之花\"都锦生织锦。"},
+  {g:"gs",n:"拱墅区红十字应急救护培训基地",a:"康桥路196号",t:"急救",f:1,lat:30.350,lng:120.140,d:"亲手学心肺复苏、包扎、海姆立克,关键时刻能救命的实用技能。"},
+
+  // 西湖区
+  {g:"xh",n:"中国湿地博物馆",a:"天目山路402号",t:"湿地·自然",f:1,lat:30.275,lng:120.085,d:"西溪旁,看湿地生态、动植物标本和屋顶花园,自然科普一站式。"},
+  {g:"xh",n:"杭州之江文创园",a:"转塘创意路1号",t:"文创",f:1,lat:30.180,lng:120.115,d:"老厂房改造的文创园,艺术氛围浓,适合看展和拍照。"},
+  {g:"xh",n:"杭州青少年活动中心",a:"昭庆寺里街22号",t:"青少年",f:1,lat:30.260,lng:120.150,d:"西湖边的少年宫,各类兴趣班和活动,孩子的快乐大本营。"},
+  {g:"xh",n:"杭州图书馆少儿分馆",a:"曙光路75号",t:"阅读",f:1,lat:30.255,lng:120.140,d:"专为孩子打造的图书馆,绘本、活动丰富。"},
+  {g:"xh",n:"西湖区青少年宫",a:"转塘少年路8号",t:"青少年",f:1,lat:30.180,lng:120.110,d:"转塘的青少年活动场所,兴趣培养和实践活动。"},
+  {g:"xh",n:"外桐坞村第二课堂",a:"转塘外桐坞村",t:"乡村·艺术",f:1,lat:30.175,lng:120.090,d:"\"画家村\",茶园+艺术工作室,乡村研学和写生的好地方。"},
+  {g:"xh",n:"李叔同纪念馆",a:"虎跑路39号",t:"名人",f:1,lat:30.205,lng:120.140,d:"虎跑公园内,纪念才华横溢的弘一法师李叔同,看他从艺术家到高僧的一生。"},
+  {g:"xh",n:"浙江美术馆",a:"南山路138号",t:"美术",f:1,lat:30.235,lng:120.148,d:"西湖边大型美术馆,名家书画和各种特展,艺术熏陶好去处。"},
+  {g:"xh",n:"杭州西湖博览会博物馆",a:"北山路41-42号",t:"博览史",f:1,lat:30.255,lng:120.145,d:"北山街历史建筑里,看1929年首届西湖博览会的盛况。"},
+  {g:"xh",n:"都锦生故居",a:"下茅家埠23号",t:"名人故居",f:1,lat:30.230,lng:120.125,d:"丝织实业家都锦生的故居,了解民族工业的故事。"},
+  {g:"xh",n:"林风眠故居",a:"灵隐路3号",t:"画家",f:1,lat:30.245,lng:120.130,d:"中国现代美术先驱林风眠故居,看大师的艺术人生。"},
+  {g:"xh",n:"杭州动物园",a:"虎跑路40号",t:"自然·动物",f:1,lat:30.205,lng:120.135,d:"大熊猫、金丝猴、长颈鹿…经典遛娃地,孩子百去不厌。"},
+  {g:"xh",n:"韩美林艺术馆",a:"桃源岭3号",t:"艺术",f:1,lat:30.255,lng:120.123,d:"看艺术家韩美林的雕塑和绘画,造型活泼可爱,孩子很喜欢。"},
+  {g:"xh",n:"岳王庙",a:"北山路80号",t:"历史·爱国",f:1,lat:30.258,lng:120.140,d:"岳飞墓庙,\"精忠报国\"四字、跪像和故事,最好的爱国主义现场课。"},
+  {g:"xh",n:"白苏二公祠",a:"孤山路1号",t:"人文",f:1,lat:30.255,lng:120.143,d:"纪念治理西湖的白居易和苏东坡,白堤苏堤的由来都在这。"},
+  {g:"xh",n:"中国茶叶博物馆",a:"龙井路88号",t:"茶文化",f:1,lat:30.224,lng:120.124,d:"龙井茶乡里,看茶史茶具,春天能采茶、炒茶、品茶,沉浸式茶文化。"},
+  {g:"xh",n:"黄源故居",a:"葛岭路13号",t:"名人故居",f:1,lat:30.256,lng:120.143,d:"文学家、出版家黄源的故居,葛岭幽静小院。"},
+  {g:"xh",n:"玛瑙寺连横纪念馆",a:"葛岭路17号",t:"人文",f:1,lat:30.256,lng:120.144,d:"葛岭玛瑙寺内,讲台湾史学家连横(连战祖父)与两岸文史渊源。"},
+  {g:"xh",n:"杭州植物园",a:"桃源岭1号",t:"植物·自然",f:1,lat:30.253,lng:120.123,d:"四季花木、温室、玉泉观鱼,认植物、看锦鲤,自然教育好场所。"},
+  {g:"xh",n:"盖叫天故居",a:"赵公堤5号",t:"戏曲",f:1,lat:30.245,lng:120.130,d:"京剧表演艺术家盖叫天的\"燕南寄庐\",了解戏曲名家。"},
+  {g:"xh",n:"杭州钱王祠",a:"钱王祠路1号",t:"吴越史",f:1,lat:30.245,lng:120.150,d:"西湖边,纪念吴越王钱镠\"保境安民\",园林+历史一起看。"},
+  {g:"xh",n:"苏东坡纪念馆",a:"南山路2-1号",t:"诗词·人文",f:1,lat:30.232,lng:120.148,d:"西湖边,看苏东坡两度在杭为官、疏浚西湖、写下名诗的故事。"},
+  {g:"xh",n:"章太炎纪念馆",a:"南山路2-1号",t:"名人",f:1,lat:30.231,lng:120.148,d:"国学大师、革命家章太炎生平展,西湖南线顺路打卡。"},
+  {g:"xh",n:"于谦祠",a:"三台山路161号",t:"历史·爱国",f:1,lat:30.225,lng:120.135,d:"三台山下,纪念\"要留清白在人间\"的民族英雄于谦。"},
+  {g:"xh",n:"浙江省博物馆(孤山馆)",a:"孤山路25号",t:"综合·历史",f:1,lat:30.257,lng:120.143,d:"西湖孤山上,看河姆渡、良渚文物,黄公望《富春山居图》(剩山图)在此。"},
+  {g:"xh",n:"西溪国家湿地公园",a:"天目山路518号",t:"湿地·自然",f:1,lat:30.270,lng:120.070,d:"坐摇橹船穿芦苇荡看水鸟,《非诚勿扰》取景地,城市里的天然氧吧。"},
+  {g:"xh",n:"中国丝绸博物馆",a:"玉皇山路73-1号",t:"丝绸·非遗",f:1,lat:30.215,lng:120.146,d:"全球最大丝绸专题馆,看丝绸历史、古织机和复原华服,常有汉服活动。"},
+  {g:"xh",n:"杭州市革命烈士纪念馆",a:"之江路2号",t:"红色教育",f:1,lat:30.199,lng:120.126,d:"之江路畔,缅怀革命先烈,红色教育和爱国主义现场课。"},
+  {g:"xh",n:"兰里研学大本营",a:"三墩镇蒋家斗26号",t:"农耕·研学",f:0,lat:30.320,lng:120.060,d:"农耕采摘、亲子农事和自然研学,城里娃下地的好去处(需购票)。"},
+  {g:"xh",n:"浙江省博物馆(之江馆)",a:"之江文化中心",t:"综合·新馆",f:1,lat:30.166,lng:120.105,d:"之江文化中心新馆,展陈现代炫酷,浙江通史大展,体量比孤山馆大得多。"},
+  {g:"xh",n:"浙江省非物质文化遗产馆",a:"之江文化中心",t:"非遗·互动",f:1,lat:30.165,lng:120.106,d:"看遍浙江非遗,大量可看可玩可体验的互动,孩子超买账。"},
+  {g:"xh",n:"浙江图书馆(之江馆)",a:"之江文化中心",t:"阅读",f:1,lat:30.166,lng:120.107,d:"现代化大图书馆,空间漂亮,亲子阅读和活动都合适。"},
+
+  // 滨江区
+  {g:"bj",n:"中国杭州低碳科技馆",a:"江汉路1888号",t:"科学·实验",f:1,lat:30.196,lng:120.205,d:"低碳科普主题,球幕影院、地震/台风体验、互动展项多,孩子超爱的科技馆。"},
+  {g:"bj",n:"杭州中国动漫博物馆",a:"白马湖路375号",t:"动漫·互动",f:1,lat:30.176,lng:120.193,d:"全国唯一国家级动漫馆,看动漫发展史、亲手做动画、玩互动,白马湖边颜值高。"},
+
+  // 钱塘区
+  {g:"qt",n:"浙江理工大学理学院科普基地",a:"2号大街928号",t:"科普",f:1,lat:30.310,lng:120.355,d:"高校里的科普基地,看物理化学小实验和科学演示。"},
+  {g:"qt",n:"九阳青少年食育研学基地",a:"银海街760号",t:"食育·体验",f:1,lat:30.293,lng:120.345,d:"了解豆浆和厨房电器，动手做食物，从\"吃\"里学知识的食育课。"},
+  {g:"qt",n:"康师傅梦想探索乐园",a:"银海街555号",t:"食品·工厂",f:1,lat:30.291,lng:120.341,d:"参观方便面、饮料生产线,亲眼看食品是怎么造出来的,很涨见识。"},
+  {g:"qt",n:"杭州海塘遗址博物馆",a:"九堡九睦路109号",t:"水利·历史",f:1,lat:30.300,lng:120.270,d:"看古海塘遗址,了解杭州人怎么筑塘防钱塘江大潮。"},
+
+  // 余杭区
+  {g:"yh",n:"长乐青少年素质教育基地",a:"径山镇径山路18号",t:"素质拓展",f:1,lat:30.350,lng:119.900,d:"径山脚下,户外拓展、素质训练和营地活动。"},
+  {g:"yh",n:"章太炎故居纪念馆",a:"仓前塘路59号",t:"名人故居",f:1,lat:30.290,lng:120.000,d:"仓前老街上的国学大师出生老宅,江南台门建筑,顺便逛梦想小镇。"},
+  {g:"yh",n:"良渚博物院",a:"美丽洲路1号",t:"考古·五千年",f:1,lat:30.398,lng:119.998,d:"实证中华五千年文明,玉琮、稻作、神徽,展陈一流,看良渚先来这。"},
+  {g:"yh",n:"良渚古城遗址公园",a:"凤都路",t:"世界遗产",f:0,lat:30.395,lng:119.976,d:"世界遗产,坐观光车看五千年古城墙、稻田和鹿苑,课本\"良渚\"实地版(需购票)。"},
+  {g:"yh",n:"径山花海",a:"径山镇龙皇路99号",t:"自然·研学",f:1,lat:30.340,lng:119.880,d:"大片花海+研学项目,结合径山茶和禅文化,亲近自然。"},
+
+  // 临平区
+  {g:"lp",n:"临平区科技馆",a:"临平街道沿山路45号",t:"科技",f:1,lat:30.420,lng:120.300,d:"区级科技馆,动手玩科学互动展项,适合周末就近遛娃。"},
+  {g:"lp",n:"中国江南水乡文化博物馆",a:"临平街道南大街",t:"水乡·民俗",f:1,lat:30.418,lng:120.295,d:"看江南水乡的民俗风物和良渚文化,了解\"鱼米之乡\"的生活。"},
+  {g:"lp",n:"杭州江楠糕版艺术馆",a:"塘栖镇超山路88号",t:"非遗·糕版",f:1,lat:30.460,lng:120.100,d:"塘栖古镇旁,看精雕细刻的传统糕点模板,可亲手拓印,非遗体验有意思。"},
+
+  // 萧山区
+  {g:"xs",n:"绿科秀",a:"传化花园中心竞汇路",t:"农业·科普",f:1,lat:30.150,lng:120.230,d:"现代农业科技馆,看无土栽培、智能种植等\"未来农业\"。"},
+  {g:"xs",n:"中国水利博物馆",a:"水博大道1号",t:"水利",f:1,lat:30.185,lng:120.280,d:"塔式造型很特别,看从大禹治水到现代的中国治水智慧。"},
+  {g:"xs",n:"萧山青少年素质教育实践中心",a:"红山农场萧清大道",t:"素质拓展",f:1,lat:30.150,lng:120.450,d:"综合实践和素质拓展基地,各类动手和团队活动。"},
+  {g:"xs",n:"跨湖桥遗址博物馆",a:"湘湖路978号",t:"史前·独木舟",f:1,lat:30.130,lng:120.210,d:"湘湖边,看八千年前的独木舟(世界最早之一),建在遗址上很震撼。"},
+  {g:"xs",n:"萧山·机器人博展中心",a:"鸿兴路389号",t:"机器人·科技",f:1,lat:30.180,lng:120.265,d:"各式各样的机器人和人机互动,科技感拉满,机器人迷必看。"},
+
+  // 富阳区
+  {g:"fy",n:"黄公望隐居地",a:"东洲街道黄公望村",t:"山水·绘画",f:1,lat:30.060,lng:119.980,d:"《富春山居图》的创作地,山水画意+森林,边走边读名画。"},
+  {g:"fy",n:"郁达夫故居",a:"富春街道郁达夫公园内",t:"名人故居",f:1,lat:30.050,lng:119.960,d:"作家郁达夫的故居,了解这位富阳才子的文学人生。"},
+  {g:"fy",n:"富阳博物馆",a:"江滨西大道159号",t:"富春山居",f:1,lat:30.050,lng:119.950,d:"看富春文化和富阳传统竹纸(\"京都状元府\"贡纸)的造纸技艺。"},
+  {g:"fy",n:"杭州(国际)青少年洞桥营地",a:"洞桥镇查口村",t:"营地·拓展",f:0,lat:29.950,lng:119.850,d:"山里的户外营地,拓展、露营和自然教育(需购票)。"},
+
+  // 临安区
+  {g:"la",n:"临安博物馆",a:"锦城街道天目路800号",t:"吴越文化",f:1,lat:30.230,lng:119.720,d:"吴越国王钱镠故里,看吴越文化文物,建筑由名家设计很出片。"},
+
+  // 桐庐县
+  {g:"tl",n:"桐庐博物馆",a:"城南街道学圣路646号",t:"地方史",f:1,lat:29.790,lng:119.690,d:"看桐庐的历史、民俗和富春江山水文化。"},
+  {g:"tl",n:"桐庐叶浅予艺术馆",a:"大奇山路519号",t:"绘画",f:1,lat:29.795,lng:119.685,d:"漫画、国画大师叶浅予的作品馆,看他笔下的人物和风情。"},
+
+  // 建德市
+  {g:"jd",n:"新安江水力发电厂",a:"白小线",t:"水电·工业",f:1,lat:29.470,lng:119.210,d:"新中国第一座自行设计建造的大型水电站,看大坝、机组怎么发电。"},
+  {g:"jd",n:"建德博物馆",a:"新安江街道江滨中路118号",t:"地方史",f:1,lat:29.480,lng:119.280,d:"看\"建德人\"古人类和地方历史,了解新安江畔的过往。"},
+
+  // 淳安县
+  {g:"ca",n:"淳安青少年活动中心",a:"炉峰路13号",t:"青少年",f:1,lat:29.610,lng:119.040,d:"千岛湖畔的青少年活动中心,兴趣活动和实践基地。"},
+];
+
+const map = L.map('map',{zoomControl:true}).setView([30.28,120.16],12);
+L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+  {subdomains:"1234",maxZoom:18,attribution:'高德地图'}).addTo(map);
+
+const layers={},counts={};
+Object.keys(GROUPS).forEach(k=>{layers[k]=L.layerGroup().addTo(map);counts[k]=0;});
+SPOTS.forEach(s=>{
+  const c=GROUPS[s.g].color;counts[s.g]++;
+  const m=L.circleMarker([s.lat,s.lng],{radius:7,color:"#fff",weight:2,fillColor:c,fillOpacity:.95});
+  const ft=s.f?'<span class="tg free">刷卡免费</span>':'<span class="tg free">需购票/半价</span>';
+  m.bindPopup(`<b>${s.n}</b><div class="addr">📍 ${GROUPS[s.g].name} · ${s.a}</div>`+
+    `<div class="desc">${s.d}</div>`+
+    `<div class="tags"><span class="tg">${s.t}</span>${ft}</div>`,{maxWidth:280});
+  m._spot=s;m.addTo(layers[s.g]);
+});
+
+// 定位 + 最近
+let meCircle=null,lines=[];
+function haversine(a,b,c,d){const R=6371,r=Math.PI/180;const dLat=(c-a)*r,dLng=(d-b)*r;
+  const x=Math.sin(dLat/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+function fmt(d){return d<1?Math.round(d*1000)+" m":d.toFixed(1)+" km";}
+function setMe(lat,lng,fly){
+  if(meCircle){map.removeLayer(meCircle);}
+  meCircle=L.circleMarker([lat,lng],{radius:9,color:"#fff",weight:3,fillColor:"#1565ff",fillOpacity:1}).addTo(map);
+  const ranked=SPOTS.map(s=>({...s,d2:haversine(lat,lng,s.lat,s.lng)})).sort((x,y)=>x.d2-y.d2);
+  renderNearby(ranked,lat,lng);
+  if(fly)map.setView([lat,lng],13);
+}
+function renderNearby(ranked,lat,lng){
+  const box=document.getElementById('nearby'),list=document.getElementById('nearbyList');
+  box.style.display='block';list.innerHTML='';
+  lines.forEach(l=>map.removeLayer(l));lines=[];
+  ranked.slice(0,10).forEach((s,i)=>{
+    const c=GROUPS[s.g].color;const row=document.createElement('div');row.className='row';
+    row.innerHTML=`<span class="nd" style="background:${c}"></span>`+
+      `<div class="info"><div class="nm">${s.n}</div><div class="sub">${GROUPS[s.g].name} · ${s.t}</div></div>`+
+      `<div class="dist">${fmt(s.d2)}</div>`;
+    row.onclick=()=>{if(!map.hasLayer(layers[s.g]))map.addLayer(layers[s.g]);
+      map.setView([s.lat,s.lng],15);
+      layers[s.g].eachLayer(m=>{if(m._spot&&m._spot.n===s.n)m.openPopup();});};
+    list.appendChild(row);
+    if(i<3)lines.push(L.polyline([[lat,lng],[s.lat,s.lng]],{color:c,weight:2,dashArray:"5,7",opacity:.7}).addTo(map));
+  });
+}
+document.getElementById('locBtn').onclick=()=>{
+  if(!navigator.geolocation){alert("浏览器不支持定位,请直接在地图上点你家的位置");return;}
+  const b=document.getElementById('locBtn');b.textContent="定位中…";
+  navigator.geolocation.getCurrentPosition(
+    p=>{setMe(p.coords.latitude,p.coords.longitude,true);b.textContent="📍 重新定位";},
+    e=>{b.textContent="📍 定位我的位置";alert("定位失败(可能是电脑/未授权)。请直接在地图上点一下你家的位置 👇");}
+  );
+};
+map.on('click',e=>setMe(e.latlng.lat,e.latlng.lng,false));
+
+// 图例
+const legendList=document.getElementById('legendList');
+Object.entries(GROUPS).forEach(([k,g])=>{
+  const el=document.createElement('div');el.className='item';
+  el.innerHTML=`<span class="dot" style="background:${g.color}"></span>${g.name}<span class="cnt">${counts[k]}</span>`;
+  el.onclick=()=>{if(map.hasLayer(layers[k])){map.removeLayer(layers[k]);el.classList.add('off');}
+    else{map.addLayer(layers[k]);el.classList.remove('off');}};
+  legendList.appendChild(el);
+});
+let allOn=true;
+document.getElementById('toggleAll').onclick=()=>{
+  allOn=!allOn;
+  Object.keys(GROUPS).forEach((k,i)=>{const el=legendList.children[i];
+    if(allOn){map.addLayer(layers[k]);el.classList.remove('off');}
+    else{map.removeLayer(layers[k]);el.classList.add('off');}});
+};
+</script>
+</body>
+</html>
